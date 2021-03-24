@@ -23,9 +23,12 @@ export class NotesController {
     return this.notesService.getNoteById(id);
   }
 
-  @Post('/')
-  async addNote(@Body() newNote: newNoteDto): Promise<NoteInterface> {
-    return this.notesService.addNote(newNote);
+  @Post('/:userId')
+  async addNote(
+    @Body() newNote: newNoteDto,
+    @Param('userId') userId: string,
+  ): Promise<NoteInterface> {
+    return this.notesService.addNote(newNote, userId);
   }
 
   @Delete('/:id')

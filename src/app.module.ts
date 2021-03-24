@@ -1,3 +1,4 @@
+import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { NotesModule } from './notes/notes.module';
 import { Module } from '@nestjs/common';
@@ -6,6 +7,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
+    AuthModule,
     UserModule,
     NotesModule,
     ConfigModule.forRoot({
