@@ -1,8 +1,19 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  forwardRef,
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { AuthService } from 'src/auth/auth.service';
 import { Note } from 'src/notes/schema/Note.schema';
+import { ChangeEmailDto } from './dto/changeEmail.dto';
+import { ChangeUsernameDto } from './dto/changeUsername.dto';
 import { CreateUserDto } from './dto/createUser.dto';
+import { ChangeEmailInterface } from './interface/changeEmail';
+import { ChangeUsernameInterface } from './interface/changeUsername';
 import { CreateUserInterface } from './interface/createUser';
 import { LoginUserInterface } from './interface/loginUser';
 import { UserInterface } from './interface/user';
@@ -10,7 +21,10 @@ import { User, UserDocument } from './schema/user.schema';
 
 @Injectable()
 export class UserService {
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @Inject(forwardRef(() => AuthService)) private authService: AuthService,
+  ) {}
 
   async addNoteToUser(userId: string, noteId: Note): Promise<void> {
     const user = await this.userModel.findById(userId);
@@ -45,7 +59,7 @@ export class UserService {
       .populate('notes', '-_id');
 
     return {
-      _id: user._id,
+      id: user._id,
       username: user.username,
       email: user.email,
       notes: user.notes,
@@ -81,5 +95,76 @@ export class UserService {
       email: newUser.email,
       message: 'User successfully created.',
     };
+  }
+
+  async changeUsername(
+    userData: ChangeUsernameDto,
+  ): Promise<ChangeUsernameInterface> {
+    const user = (await this.findUser(userData.email)) as UserDocument;
+
+    await this.authService.validateUser(user.email, userData.password);
+
+    try {
+      if (user.username !== userData.username) {
+        user.username = userData.username;
+        await user.save();
+
+        return {
+          message:
+            'Username successfully changed. You have to sign in again due to username change.',
+          success: true,
+        };
+      } else {
+        return {
+          message: 'New username is the same as the old one',
+          success: false,
+        };
+      }
+    } catch (error) {
+      throw new HttpException(
+        'Something went wrong. Try again!',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async changeEmail(userData: ChangeEmailDto): Promise<ChangeEmailInterface> {
+    const user = (await this.findUser(userData.email)) as UserDocument;
+
+    const userWithProvidedEmailExists = await this.userModel.findOne({
+      email: userData.newEmail,
+    });
+
+    if (userWithProvidedEmailExists) {
+      throw new HttpException(
+        'Provided new email is already used by another user',
+        HttpStatus.NOT_ACCEPTABLE,
+      );
+    }
+
+    await this.authService.validateUser(user.email, userData.password);
+
+    try {
+      if (user.email !== userData.newEmail) {
+        user.email = userData.newEmail;
+        await user.save();
+
+        return {
+          message:
+            'Email successfully changed. You have to sign in with new email.',
+          success: true,
+        };
+      } else {
+        return {
+          message: 'New email is the same as the old one',
+          success: false,
+        };
+      }
+    } catch (error) {
+      throw new HttpException(
+        'Something went wrong. Try again!',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }
